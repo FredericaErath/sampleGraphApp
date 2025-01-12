@@ -37,6 +37,21 @@
             <artifactId>opencsv</artifactId>
             <version>5.8</version>
         </dependency>
+
+        <dependency>
+            <groupId>org.foundationdb</groupId>
+            <artifactId>fdb-java</artifactId>
+            <version>6.2.22</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.janusgraph</groupId>
+            <artifactId>janusgraph-foundationdb</artifactId>
+            <version>1.0.0-nugraph-1.9.4-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/janusgraph-foundationdb.jar</systemPath>
+        </dependency>
+
     </dependencies>
 
 </project>

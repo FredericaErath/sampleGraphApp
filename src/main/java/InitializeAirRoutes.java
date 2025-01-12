@@ -1,3 +1,7 @@
+import com.apple.foundationdb.Database;
+import com.apple.foundationdb.FDB;
+import com.apple.foundationdb.Range;
+import com.apple.foundationdb.Transaction;
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
 import org.apache.tinkerpop.gremlin.structure.Edge;
@@ -11,9 +15,10 @@ import org.janusgraph.core.schema.JanusGraphManagement;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 /**
  * @version 1.0
@@ -40,16 +45,30 @@ public class InitializeAirRoutes {
 
         //BerkeleyDBLoader();
         // reference: https://docs.janusgraph.org/v1.0/storage-backend/bdb/
-        try (JanusGraph graph = JanusGraphFactory.build().
-                set("storage.backend", "berkeleyje").
-                set("storage.directory", "./data/berkeley").
-                open();) {Loader(graph);}
-        File storageDir = new File("./data/berkeley");
-        long size = Files.walk(storageDir.toPath())
-                .filter(p -> p.toFile().isFile())
-                .mapToLong(p -> p.toFile().length())
-                .sum();
-        System.out.println("Storage size: " + size + " bytes");
+//        try (JanusGraph graph = JanusGraphFactory.build().
+//                set("storage.backend", "berkeleyje").
+//                set("storage.directory", "./data/berkeley").
+//                open();) {Loader(graph);}
+//        File storageDir = new File("./data/berkeley");
+//        long size = Files.walk(storageDir.toPath())
+//                .filter(p -> p.toFile().isFile())
+//                .mapToLong(p -> p.toFile().length())
+//                .sum();
+//        System.out.println("Storage size: " + size + " bytes");
+
+        // FDB clear all old fdb data
+        FDB fdb = FDB.selectAPIVersion(620); // Choose the correct version
+        Database db = fdb.open();
+        try (Transaction tr = db.createTransaction()) {
+            Range range = new Range(new byte[]{}, new byte[]{(byte) 0xFF});
+            tr.clear(range);
+            tr.commit().join();
+            System.out.println("All key-value pairs have been cleared.");
+        }
+
+
+        try (JanusGraph graph = JanusGraphFactory.build().set("storage.backend", "org.janusgraph.diskstorage.foundationdb.FoundationDBStoreManager").open()) {Loader(graph);}
+
 
 
     }
@@ -63,7 +82,11 @@ public class InitializeAirRoutes {
 
         // Load sample data (to be implemented)
         long startTime = System.currentTimeMillis();
-        loadSampleData(graph);
+        try {
+            loadSampleData(graph);
+        } catch (Exception e){
+            System.out.println(e);
+        }
         long endTime = System.currentTimeMillis();
         System.out.println("Sample data loaded, takes: " + (endTime - startTime));
         long vertexCount = graph.traversal().V().count().next();
@@ -73,7 +96,7 @@ public class InitializeAirRoutes {
     }
 
 
-    private static void initializeSchema(JanusGraph graph) {
+    public static void initializeSchema(JanusGraph graph) {
         // reference: https://docs.janusgraph.org/v1.0/schema/
         ObjectMapper objectMapper = new ObjectMapper();
         try {
@@ -132,6 +155,18 @@ public class InitializeAirRoutes {
                     }
                 }
             }
+
+            // index
+            if (!mgmt.containsPropertyKey("identity")) {
+                mgmt.makePropertyKey("identity").dataType(String.class).make();
+            }
+
+            if (!mgmt.containsGraphIndex("identityIndex")) {
+                mgmt.buildIndex("identityIndex", Vertex.class)
+                        .addKey(mgmt.getPropertyKey("identity"))
+                        .unique()
+                        .buildCompositeIndex();
+            }
             mgmt.commit();
         } catch (IOException e) {
             e.printStackTrace();
@@ -177,12 +212,12 @@ public class InitializeAirRoutes {
         }
     }
 
-    private static void loadSampleData(JanusGraph graph) {
+    public static void loadSampleData(JanusGraph graph) {
         // load data from CSV files
         try {
             loadNodes(graph);
 
-            loadEdges(graph);
+            loadEdges(graph, 100);
 
             System.out.println("Data loaded successfully.");
         } catch (IOException | CsvException e) {
@@ -191,7 +226,7 @@ public class InitializeAirRoutes {
 
     }
 
-    private static void loadNodes(JanusGraph graph) throws IOException, CsvException {
+    public static void loadNodes(JanusGraph graph) throws IOException, CsvException {
         try (CSVReader reader = new CSVReader(new FileReader("D:/新建文件夹/researchproj/SampleGraphApp/src/data/air-routes-latest-nodes.csv"))) {
             List<String[]> rows = reader.readAll();
             String[] headers = rows.get(0);
@@ -220,43 +255,48 @@ public class InitializeAirRoutes {
         }
     }
 
-    private static void loadEdges(JanusGraph graph) throws IOException, CsvException {
+    private static void loadEdges(JanusGraph graph, int batchSize) throws IOException, CsvException {
         try (CSVReader reader = new CSVReader(new FileReader("D:/新建文件夹/researchproj/SampleGraphApp/src/data/air-routes-latest-edges.csv"))) {
             List<String[]> rows = reader.readAll();
 
-            JanusGraphTransaction tx = graph.newTransaction();
-            try {
-                for (int i = 1; i < rows.size(); i++) {
-                    String[] row = rows.get(i);
+            List<String[]> batch = new ArrayList<>();
+            for (int i = 1; i < rows.size(); i++) {
+                batch.add(rows.get(i));
 
-                    String fromId = row[1];
-                    String toId = row[2];
-                    String label = row[3];
-                    String dist = row[4];
+                // use batch to avoid "Transaction is not restartable" error
+                if (batch.size() == batchSize || i == rows.size() - 1) {
+                    try (JanusGraphTransaction tx = graph.newTransaction()) {
+                        Map<String, Vertex> vertexCache = new HashMap<>();
+                        for (String[] row : batch) {
+                            String fromId = row[1];
+                            String toId = row[2];
+                            String label = row[3];
+                            String dist = row[4];
 
-                    // find from and to
-                    Vertex fromVertex = tx.traversal().V().has("identity", fromId).next();
-                    Vertex toVertex = tx.traversal().V().has("identity", toId).next();
+                            Vertex fromVertex = vertexCache.computeIfAbsent(fromId, id ->
+                                    tx.traversal().V().has("identity", id).tryNext().orElse(null)
+                            );
+                            Vertex toVertex = vertexCache.computeIfAbsent(toId, id ->
+                                    tx.traversal().V().has("identity", id).tryNext().orElse(null)
+                            );
 
-                    // create vertex
-                    if (fromVertex != null && toVertex != null) {
-                        try{
-                            if(!Objects.equals(row[4], "")){
-                                // dist can be "" for "contains"
-                                fromVertex.addEdge(label, toVertex, "dist", Integer.parseInt(dist));
-                            }else {
-                                fromVertex.addEdge(label, toVertex);
+                            if (fromVertex != null && toVertex != null) {
+                                if (!dist.isEmpty()) {
+                                    fromVertex.addEdge(label, toVertex, "dist", Integer.parseInt(dist));
+                                } else {
+                                    fromVertex.addEdge(label, toVertex);
+                                }
                             }
-                        }catch (Exception e){
-                            System.out.println(e);
                         }
-
+                        tx.commit();
+                        batch.clear(); // clear batch
+                    } catch (Exception e) {
+                        System.err.println("Failed to insert batch of edges: " + e.getMessage());
+                        e.printStackTrace();
                     }
                 }
-                tx.commit();
-            } catch (Exception e) {
-                tx.rollback();
-                throw e;
             }
-        }}
+        }
+    }
+
 }
