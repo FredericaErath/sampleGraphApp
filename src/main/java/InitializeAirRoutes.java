@@ -80,7 +80,7 @@ public class InitializeAirRoutes {
         initializeSchema(graph);
         System.out.println("Schema initialized.");
 
-        // Load sample data (to be implemented)
+        // Load sample data
         long startTime = System.currentTimeMillis();
         try {
             loadSampleData(graph);
