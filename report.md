@@ -16,7 +16,7 @@ For storage, before adding the graph, the storage is:
 ### ![](screenshots/fdb_storage_status1.png)
 After adding the graph to fdb, the storage is:
 ### ![](screenshots/fdb_storage_status2.png)
-Pure key-value pairs takes about 6MB, total data is about 162-150=12MB.
+Pure key-value pairs takes about 6MB, total data is about 162-151=11MB.
 #### Problems encountered while loading data:
 Transaction problems happened when loading graph data:
 ![](screenshots/problem1.png)
