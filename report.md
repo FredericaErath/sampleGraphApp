@@ -22,6 +22,32 @@ Transaction problems happened when loading graph data:
 ![](screenshots/problem1.png)
 This is due to the transactions in FDB have a hard timeout limit (5 seconds by default), which can be a challenge for tasks that require large amounts of data to be loaded.
 I solve this problem by optimizing the loading function and make it able to load edges in batches.
+```java
+
+private static void loadEdges(JanusGraph graph, int batchSize) throws IOException, CsvException {
+try (CSVReader reader = new CSVReader(new FileReader("filepath"))) {
+List<String[]> rows = reader.readAll();
+
+            List<String[]> batch = new ArrayList<>();
+            for (int i = 1; i < rows.size(); i++) {
+                batch.add(rows.get(i));
+
+                // use batch to avoid "Transaction is not restartable" error
+                if (batch.size() == batchSize || i == rows.size() - 1) {
+                    try (JanusGraphTransaction tx = graph.newTransaction()) {
+                        //loadgraph...
+                        tx.commit();
+                        batch.clear(); // clear batch
+                    } catch (Exception e) {
+                        System.err.println("Failed to insert batch of edges: " + e.getMessage());
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+    }
+```
+
 ### Task 5: Thoughts about the different performance between BerkeleyDB and Foundationdb.
 The simple application is single-node, and BerkeleyDB aiming for high-performance access on a single machine. 
 While for foundationDB, it provides ACID transaction support can have a performance impact on single nodes while better performance in distributed scenarios. 

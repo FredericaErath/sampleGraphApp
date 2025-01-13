@@ -101,7 +101,7 @@ public class InitializeAirRoutes {
         ObjectMapper objectMapper = new ObjectMapper();
         try {
             // read JSON file
-            JsonNode schema = objectMapper.readTree(new File("D:/新建文件夹/researchproj/SampleGraphApp/src/data/schema.json"));
+            JsonNode schema = objectMapper.readTree(new File("./src/data/schema.json"));
             JanusGraphManagement mgmt = graph.openManagement();
 
             // create Vertex Labels
@@ -227,7 +227,7 @@ public class InitializeAirRoutes {
     }
 
     public static void loadNodes(JanusGraph graph) throws IOException, CsvException {
-        try (CSVReader reader = new CSVReader(new FileReader("D:/新建文件夹/researchproj/SampleGraphApp/src/data/air-routes-latest-nodes.csv"))) {
+        try (CSVReader reader = new CSVReader(new FileReader("./src/data/air-routes-latest-nodes.csv"))) {
             List<String[]> rows = reader.readAll();
             String[] headers = rows.get(0);
 
@@ -256,7 +256,7 @@ public class InitializeAirRoutes {
     }
 
     private static void loadEdges(JanusGraph graph, int batchSize) throws IOException, CsvException {
-        try (CSVReader reader = new CSVReader(new FileReader("D:/新建文件夹/researchproj/SampleGraphApp/src/data/air-routes-latest-edges.csv"))) {
+        try (CSVReader reader = new CSVReader(new FileReader("./src/data/air-routes-latest-edges.csv"))) {
             List<String[]> rows = reader.readAll();
 
             List<String[]> batch = new ArrayList<>();
