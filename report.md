@@ -13,9 +13,9 @@ Takes 21370732 bytes which is about 20MB.
 ![](screenshots/task4-2.png)
 As we can see from the results, 3748 vertices and 57645 edges are loaded in 27406 milliseconds. 
 For storage, before adding the graph, the storage is:
-![](screenshots/fdb_storage_status1.png)
+### ![](screenshots/fdb_storage_status1.png)
 After adding the graph to fdb, the storage is:
-![](screenshots/fdb_storage_status2.png)
+### ![](screenshots/fdb_storage_status2.png)
 Pure key-value pairs takes about 6MB, total data is about 162-150=12MB.
 #### Problems encountered while loading data:
 Transaction problems happened when loading graph data:
